@@ -3,7 +3,6 @@ import pandas as pd
 import fred_pandas
 import streamlit as st
 import plotly.graph_objects as go
-
 # ----------------------------------------------------------------------
 assets = {
     "WGCAL": 'Gold Certificate Account',
@@ -118,6 +117,7 @@ if st.sidebar.checkbox('Remove series larger than'):
             print(f'Removing {column}')
             a = a.drop(columns=[column])
 
+# ----------------------------------------------------------------------
 # Create a Plotly figure
 fig = go.Figure()
 
@@ -155,3 +155,29 @@ st.write('# Federal Reserve Balance Sheet')
 st.plotly_chart(fig)
 
 st.button('Clear cache', on_click=setup_dataframe.clear)
+# ----------------------------------------------------------------------
+df_diff = a.set_index('date').diff().reset_index()
+
+selected_date = st.selectbox('date', df_diff['date'].sort_values(ascending=False))
+
+row = df_diff[df_diff['date'] == selected_date]
+
+last_row = row.iloc[-1]
+
+fig = go.Figure()
+
+fig.add_trace(go.Bar(
+    x=last_row.index[1:],   # Exclude the 'date' column
+    y=last_row.values[1:],  # Exclude the 'date' value
+    name='Last Row Values'
+))
+
+fig.update_layout(
+    title=f'Changes on {selected_date}',
+    xaxis_title='Columns',
+    yaxis_title='Values',
+    xaxis_tickangle=-45
+)
+
+st.plotly_chart(fig)
+# ----------------------------------------------------------------------
