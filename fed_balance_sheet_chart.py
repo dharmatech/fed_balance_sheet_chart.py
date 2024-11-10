@@ -56,11 +56,7 @@ if __name__ == '__main__':
 def setup_dataframe():
 
     tbl = {}
-
-    # for series in assets.keys():
-    #     tbl[series] = fred_pandas.load_records(series=series, update=False)
-
-
+    
     for series in series_items:
         tbl[series] = fred_pandas.load_records(series=series, update=False)
 
@@ -76,28 +72,44 @@ def setup_dataframe():
     for b in ls[1:]:
         a = a.merge(b, on='date')
 
-
-
-    # convert all values to numeric
-
     for series in a.columns[1:]:
         # a[series] = pd.to_numeric(a[series], errors='coerce')
         a[series] = pd.to_numeric(a[series])
 
-        
-
-
-
-    # a
-
     for series in liabilities.keys():
         a[series] = a[series] * -1
 
-
-    # a[['date', 'WLFN']]
-
     return a
 
+
+
+@st.cache_data
+def setup_diff_dataframe():
+
+    tbl = {}
+    
+    for series in series_items:
+        tbl[series] = fred_pandas.load_records(series=series, update=False)
+
+    for series, df in tbl.items():
+        df.rename(columns={'value': series}, inplace=True)
+        df.drop(columns='realtime_start',    inplace=True)
+        df.drop(columns='realtime_end',      inplace=True)
+
+    ls = list(tbl.values())
+
+    a = ls[0]
+
+    for b in ls[1:]:
+        a = a.merge(b, on='date')
+
+    for series in a.columns[1:]:
+        a[series] = pd.to_numeric(a[series])
+
+    # for series in liabilities.keys():
+    #     a[series] = a[series] * -1
+
+    return a
 # ----------------------------------------------------------------------
 
 a = setup_dataframe()
@@ -154,9 +166,13 @@ st.write('# Federal Reserve Balance Sheet')
 
 st.plotly_chart(fig)
 
-st.button('Clear cache', on_click=setup_dataframe.clear)
+st.sidebar.button('Clear cache', on_click=setup_dataframe.clear)
 # ----------------------------------------------------------------------
-df_diff = a.set_index('date').diff().reset_index()
+st.write('### Changes for week')
+
+df_diff = setup_diff_dataframe()
+
+df_diff = df_diff.set_index('date').diff().reset_index()
 
 selected_date = st.selectbox('date', df_diff['date'].sort_values(ascending=False))
 
@@ -166,10 +182,31 @@ last_row = row.iloc[-1]
 
 fig = go.Figure()
 
+# bar_names = [all_items.get(col, col) for col in last_row.index[1:]]
+
+# list(assets.keys())
+
+bar_names = [f'{col} : {all_items.get(col, col)}' for col in last_row.index[1:]]
+
+assets_ = list(assets.keys())
+liabilities_ = list(liabilities.keys())
+
+import plotly.colors as pc
+
+asset_color     = pc.qualitative.Plotly[2]
+liability_color = pc.qualitative.Plotly[1]
+
+# colors = ['green' if col in assets_ else 'red' if col in liabilities_ else 'blue' for col in last_row.index[1:]]
+
+colors = [asset_color if col in assets_ else liability_color if col in liabilities_ else 'blue' for col in last_row.index[1:]]
+
 fig.add_trace(go.Bar(
     x=last_row.index[1:],   # Exclude the 'date' column
     y=last_row.values[1:],  # Exclude the 'date' value
-    name='Last Row Values'
+    name='Last Row Values',
+    text=bar_names,
+    hoverinfo='text+y',
+    marker_color=colors
 ))
 
 fig.update_layout(
